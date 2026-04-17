@@ -8,6 +8,8 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
 		<string>Fuel Tracker</string>
+		    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>This app needs location to show your position.</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>
@@ -70,5 +72,12 @@
 		<false/>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
+		<key>NSLocationWhenInUseUsageDescription</key>
+<string>This app needs location to show your position.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>This app needs photo library access to upload generator images.</string>
+<key>NSCameraUsageDescription</key>
+<string>This app needs camera access to take generator images.</string>
 	</dict>
+	
 </plist>

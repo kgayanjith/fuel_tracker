@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fuel_tracker/screens/generator_view.dart';
 import '../widgets/appbar.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
@@ -15,19 +16,28 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
       "name": "Civil Department",
       "location": "Civil",
       "model": "CAT-18KS",
-      "liters": 10,
+      "liters": "10",
+      "image": "assets/generator1.png",
+      "capacity": "50",
+      "usage": "10",
     },
     const {
       "name": "Main Hall",
       "location": "Main",
       "model": "CAT-19KS",
-      "liters": 5,
+      "liters": "5",
+      "image": "assets/generator2.jpg",
+      "capacity": "35",
+      "usage": "7",
     },
     const {
       "name": "PC Lab",
       "location": "Lab 1",
       "model": "CAT-20KS",
-      "liters": 15,
+      "liters": "15",
+      "image": "assets/generator3.png",
+      "capacity": "70",
+      "usage": "15",
     },
   ];
 
@@ -92,7 +102,7 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          GeneratorDetailScreen(generator: generator),
+                          GeneratorView(data: generators[index]),
                     ),
                   );
                 },
@@ -112,10 +122,10 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.asset(
-                          'assets/placeholder.jpeg',
+                          generator['image'] as String,
                           height: 80,
-                          width: 100,
-                          fit: BoxFit.cover,
+                          width: 90,
+                          fit: BoxFit.contain,
                         ),
                       ),
                       const SizedBox(width: 15),
@@ -187,61 +197,6 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class GeneratorDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> generator;
-
-  const GeneratorDetailScreen({super.key, required this.generator});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CustomAppBar(
-        title: "Generators",
-        leadingIconType: LeadingIconType.back,
-        showInfoIcon: true,
-        avatarPath: 'assets/profile.png',
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'assets/placeholder.jpeg',
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              generator['name'],
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Location: ${generator['location']}',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Model: ${generator['model']}',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Liters Remaining: ${generator['liters']}',
-              style: const TextStyle(fontSize: 16),
-            ),
-          ],
         ),
       ),
     );

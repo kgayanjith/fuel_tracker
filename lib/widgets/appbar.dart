@@ -7,6 +7,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final LeadingIconType leadingIconType;
   final bool showInfoIcon;
   final String? avatarPath;
+  final VoidCallback? onLeadingIconTap;
 
   const CustomAppBar({
     super.key,
@@ -14,6 +15,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.leadingIconType = LeadingIconType.none,
     this.showInfoIcon = true,
     this.avatarPath = 'assets/profile.png',
+    this.onLeadingIconTap,
   });
 
   @override
@@ -24,7 +26,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       case LeadingIconType.back:
         leading = IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {},
+          onPressed: onLeadingIconTap ?? () => Navigator.pop(context),
         );
         break;
       case LeadingIconType.notification:

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../widgets/appbar.dart';
 
@@ -700,8 +701,11 @@ class _FuelTabState extends State<_FuelTab> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFDDDDDD)),
             ),
-            child: const TextField(
+            child: TextField(
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
+              ],
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Enter fuel amount',
@@ -726,8 +730,11 @@ class _FuelTabState extends State<_FuelTab> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFDDDDDD)),
             ),
-            child: const TextField(
+            child: TextField(
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
+              ],
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Enter fuel amount',
