@@ -5,26 +5,20 @@ import '../widgets/appbar.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
-class GeneratorView extends StatefulWidget {
-  final Map<String, dynamic> data;
-
-  const GeneratorView({super.key, required this.data});
+class AddGenerator extends StatefulWidget {
+  const AddGenerator({super.key});
 
   @override
-  State<GeneratorView> createState() => _GeneratorViewState();
+  State<AddGenerator> createState() => _AddGeneratorState();
 }
 
-class _GeneratorViewState extends State<GeneratorView> {
+class _AddGeneratorState extends State<AddGenerator> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
-  String _selectedLocation = '';
+  String _selectedLocation = 'Select Location';
   bool _imageDeleted = false;
 
-  bool get _hasImage =>
-      _selectedImage != null ||
-      (!_imageDeleted &&
-          widget.data['image'] != null &&
-          widget.data['image'].toString().isNotEmpty);
+  bool get _hasImage => _selectedImage != null;
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(
@@ -101,7 +95,7 @@ class _GeneratorViewState extends State<GeneratorView> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: widget.data['name']?.toString(),
+                    hintText: null,
                     hintStyle: TextStyle(
                       color: const Color.fromARGB(255, 0, 0, 0),
                       fontSize: 14,
@@ -154,9 +148,7 @@ class _GeneratorViewState extends State<GeneratorView> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _selectedLocation.isEmpty
-                              ? widget.data['location']
-                              : _selectedLocation,
+                          _selectedLocation,
                           style: TextStyle(
                             fontSize: 14,
                             color: _selectedLocation.isEmpty
@@ -194,7 +186,7 @@ class _GeneratorViewState extends State<GeneratorView> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: widget.data['model']?.toString(),
+                    hintText: null,
                     hintStyle: TextStyle(
                       color: const Color.fromARGB(255, 0, 0, 0),
                       fontSize: 14,
@@ -221,7 +213,7 @@ class _GeneratorViewState extends State<GeneratorView> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: widget.data['capacity']?.toString(),
+                    hintText: null,
                     hintStyle: TextStyle(
                       color: const Color.fromARGB(255, 0, 0, 0),
                       fontSize: 14,
@@ -247,36 +239,9 @@ class _GeneratorViewState extends State<GeneratorView> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: widget.data['usage']?.toString(),
+                    hintText: null,
                     hintStyle: TextStyle(
                       color: const Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 32),
-              const Text(
-                "Fuel Remaining (L)*",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 10),
-
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFDDDDDD)),
-                ),
-                child: TextField(
-                  enabled: false,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: widget.data['liters']?.toString(),
-                    hintStyle: TextStyle(
-                      color: const Color.fromARGB(156, 0, 0, 0),
                       fontSize: 14,
                     ),
                   ),
@@ -320,17 +285,6 @@ class _GeneratorViewState extends State<GeneratorView> {
                               borderRadius: BorderRadius.circular(10),
                               child: Image.file(
                                 _selectedImage!,
-                                fit: BoxFit.cover,
-                                width: 110,
-                                height: 110,
-                              ),
-                            )
-                          : (widget.data['image'] != null &&
-                                widget.data['image'].toString().isNotEmpty)
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Image.asset(
-                                widget.data['image'] as String,
                                 fit: BoxFit.cover,
                                 width: 110,
                                 height: 110,
@@ -398,31 +352,6 @@ class _GeneratorViewState extends State<GeneratorView> {
               ),
               const SizedBox(height: 32),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => {},
-                      child: Container(
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEEEEE),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'Generate Report',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
               SizedBox(height: 20),
               Row(
                 children: [

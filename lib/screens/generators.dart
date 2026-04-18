@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fuel_tracker/screens/addgenerator.dart';
 import 'package:fuel_tracker/screens/generator_view.dart';
 import '../widgets/appbar.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -13,6 +14,7 @@ class GeneratorsScreen extends StatefulWidget {
 class _GeneratorsScreenState extends State<GeneratorsScreen> {
   final List<Map<String, dynamic>> generators = [
     const {
+      "id": "1",
       "name": "Civil Department",
       "location": "Civil",
       "model": "CAT-18KS",
@@ -22,6 +24,7 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
       "usage": "10",
     },
     const {
+      "id": "2",
       "name": "Main Hall",
       "location": "Main",
       "model": "CAT-19KS",
@@ -31,6 +34,7 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
       "usage": "7",
     },
     const {
+      "id": "3",
       "name": "PC Lab",
       "location": "Lab 1",
       "model": "CAT-20KS",
@@ -49,6 +53,21 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
         leadingIconType: LeadingIconType.notification,
         showInfoIcon: true,
         avatarPath: 'assets/profile.png',
+      ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 80),
+        child: FloatingActionButton(
+          backgroundColor: Colors.black,
+
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(50),
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AddGenerator()),
+          ),
+          child: Icon(Icons.add, color: Colors.white),
+        ),
       ),
       extendBodyBehindAppBar: false,
       body: Padding(
@@ -205,6 +224,7 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
 
 void showConfirmationListDelete(BuildContext context) {
   showModalBottomSheet(
+    useRootNavigator: true,
     context: context,
     backgroundColor: Colors.white,
     shape: const RoundedRectangleBorder(

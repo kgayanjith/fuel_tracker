@@ -408,6 +408,7 @@ class _RuntimeTabState extends State<_RuntimeTab> {
 
   void showConfirmationSheeRuntime(BuildContext context) {
     showModalBottomSheet(
+      useRootNavigator: true,
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
@@ -809,6 +810,7 @@ class _FuelTabState extends State<_FuelTab> {
 
   void showConfirmationSheeFuel(BuildContext context) {
     showModalBottomSheet(
+      useRootNavigator: true,
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
