@@ -348,7 +348,7 @@ class _RuntimeTabState extends State<_RuntimeTab> {
                 child: GestureDetector(
                   onTap: () {
                     setState(() {
-                      _selectedDay = null;
+                      _selectedDay = DateTime.now();
                       _selectedGenerator = null;
                       _selectedHour = null;
                       _selectedMinute = null;
@@ -752,7 +752,7 @@ class _FuelTabState extends State<_FuelTab> {
                 child: GestureDetector(
                   onTap: () {
                     setState(() {
-                      _selectedDay = null;
+                      _selectedDay = DateTime.now();
                       _selectedGenerator = null;
                       _focusedDay = DateTime.now();
                     });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fuel_tracker/screens/info.dart';
 
 enum LeadingIconType { back, notification, none }
 
@@ -81,7 +82,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         if (showInfoIcon)
           IconButton(
-            onPressed: () {},
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => Info()),
+            ),
             icon: const Icon(Icons.info_outline, color: Colors.black),
           ),
         const SizedBox(width: 2),

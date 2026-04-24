@@ -44,30 +44,11 @@ class _AddGeneratorState extends State<AddGenerator> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(
-        title: "Generator View",
+        title: "Add Generator",
         leadingIconType: LeadingIconType.back,
         showInfoIcon: true,
         avatarPath: 'assets/profile.png',
-        onLeadingIconTap: () => Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const GeneratorsScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  const begin = Offset(-1.0, 0.0);
-                  const end = Offset.zero;
-                  final tween = Tween(
-                    begin: begin,
-                    end: end,
-                  ).chain(CurveTween(curve: Curves.easeInOut));
-                  return SlideTransition(
-                    position: animation.drive(tween),
-                    child: child,
-                  );
-                },
-          ),
-        ),
+        onLeadingIconTap: () => Navigator.pop(context),
       ),
       // backgroundColor: Colors.white,
       extendBodyBehindAppBar: false,
@@ -417,7 +398,7 @@ class _AddGeneratorState extends State<AddGenerator> {
                         ),
                         alignment: Alignment.center,
                         child: const Text(
-                          'Save',
+                          'Save Record',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -469,7 +450,7 @@ void showConfirmationGeneratorSave(BuildContext context) {
               ),
             ),
             const Text(
-              "Are you sure you want to save changes ?",
+              "Are you sure you want to save ?",
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

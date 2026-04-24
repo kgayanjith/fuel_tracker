@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fuel_tracker/screens/generators.dart';
 import 'package:fuel_tracker/screens/map_location_picker.dart';
+import 'package:fuel_tracker/screens/report_preview_screen.dart';
 import '../widgets/appbar.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -54,26 +55,7 @@ class _GeneratorViewState extends State<GeneratorView> {
         leadingIconType: LeadingIconType.back,
         showInfoIcon: true,
         avatarPath: 'assets/profile.png',
-        onLeadingIconTap: () => Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const GeneratorsScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  const begin = Offset(-1.0, 0.0);
-                  const end = Offset.zero;
-                  final tween = Tween(
-                    begin: begin,
-                    end: end,
-                  ).chain(CurveTween(curve: Curves.easeInOut));
-                  return SlideTransition(
-                    position: animation.drive(tween),
-                    child: child,
-                  );
-                },
-          ),
-        ),
+        onLeadingIconTap: () => Navigator.pop(context),
       ),
       // backgroundColor: Colors.white,
       extendBodyBehindAppBar: false,
@@ -402,7 +384,13 @@ class _GeneratorViewState extends State<GeneratorView> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => {},
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ReportPreviewScreen(data: widget.data),
+                        ),
+                      ),
                       child: Container(
                         height: 50,
                         decoration: BoxDecoration(

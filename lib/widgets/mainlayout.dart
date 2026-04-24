@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
+import 'package:fuel_tracker/screens/reports.dart';
 import '../screens/home.dart';
 import '../screens/generators.dart';
 
@@ -41,7 +42,7 @@ class _MainLayoutState extends State<MainLayout> {
             screen = const GeneratorsScreen();
             break;
           case 2:
-            screen = const Center(child: Text("Reports"));
+            screen = const ReportsList();
             break;
           default:
             screen = const SizedBox();
