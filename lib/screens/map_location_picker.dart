@@ -44,6 +44,7 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
         final latLng = LatLng(position.latitude, position.longitude);
         setState(() => _selectedLocation = latLng);
         _mapController.move(latLng, 15);
+
         await _getAddressFromLatLng(latLng);
       } else {
         await _getAddressFromLatLng(_selectedLocation);
@@ -61,6 +62,8 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?lat=${latLng.latitude}&lon=${latLng.longitude}&format=json',
       );
+      // ignore: avoid_print
+      // print(url);
       final response = await http.get(
         url,
         headers: {'User-Agent': 'com.kalindu.fuel_tracker'},
