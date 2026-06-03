@@ -22,7 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
         showInfoIcon: true,
         avatarPath: 'assets/profile.png',
       ),
-      // backgroundColor: Colors.white,
       extendBodyBehindAppBar: false,
       body: SafeArea(
         child: Padding(
@@ -133,6 +132,7 @@ class _RuntimeTabState extends State<_RuntimeTab> {
               child: TableCalendar(
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
+
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 onDaySelected: (selectedDay, focusedDay) {
