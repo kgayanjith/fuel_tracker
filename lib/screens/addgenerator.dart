@@ -4,6 +4,11 @@ import 'package:fuel_tracker/screens/map_location_picker.dart';
 import '../widgets/appbar.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
+import 'package:uuid/uuid.dart';
+import '../widgets/dialogs.dart';
 
 class AddGenerator extends StatefulWidget {
   const AddGenerator({super.key});
@@ -16,16 +21,33 @@ class _AddGeneratorState extends State<AddGenerator> {
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
   String _selectedLocation = 'Select Location';
+  double? _selectedLat;
+  double? _selectedLng;
   bool _imageDeleted = false;
+  bool _isSaving = false;
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _capacityController = TextEditingController();
+  final TextEditingController _usageController = TextEditingController();
 
   bool get _hasImage => _selectedImage != null;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _codeController.dispose();
+    _capacityController.dispose();
+    _usageController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 80,
     );
-    if (image != null) {
+    if (image != null && mounted) {
       setState(() {
         _selectedImage = File(image.path);
         _imageDeleted = false;
@@ -40,6 +62,84 @@ class _AddGeneratorState extends State<AddGenerator> {
     });
   }
 
+  /// Copies the picked image into the app's permanent documents directory
+  /// and returns the saved file's local path. Returns null if no image.
+  Future<String?> _saveImageLocally() async {
+    if (_selectedImage == null) return null;
+
+    final appDir = await getApplicationDocumentsDirectory();
+    final fileName =
+        '${const Uuid().v4()}${path.extension(_selectedImage!.path)}';
+    final savedImage = await _selectedImage!.copy('${appDir.path}/$fileName');
+
+    return savedImage.path;
+  }
+
+  /// Validates required fields, copies the image to local storage (if any),
+  /// then saves the generator record to Firestore.
+  Future<void> _saveGenerator() async {
+    if (_nameController.text.trim().isEmpty ||
+        _codeController.text.trim().isEmpty ||
+        _capacityController.text.trim().isEmpty ||
+        _usageController.text.trim().isEmpty ||
+        _selectedLocation == 'Select Location') {
+      showMessageDialog(
+        context,
+        title: 'Missing Fields',
+        message: 'Please fill in all required fields',
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final imagePath = await _saveImageLocally();
+
+      await FirebaseFirestore.instance.collection('generators').add({
+        'name': _nameController.text.trim(),
+        'code': _codeController.text.trim(),
+        'fuelCapacity': double.tryParse(_capacityController.text.trim()),
+        'fuelUsage': double.tryParse(_usageController.text.trim()),
+        'location': _selectedLocation,
+        'latitude': _selectedLat,
+        'longitude': _selectedLng,
+        'imagePath': imagePath,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const GeneratorsScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(-1.0, 0.0);
+            const end = Offset.zero;
+            final tween = Tween(
+              begin: begin,
+              end: end,
+            ).chain(CurveTween(curve: Curves.easeInOut));
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showMessageDialog(
+        context,
+        title: 'Error',
+        message: 'Failed to save generator: $e',
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,7 +150,6 @@ class _AddGeneratorState extends State<AddGenerator> {
         avatarPath: 'assets/profile.png',
         onLeadingIconTap: () => Navigator.pop(context),
       ),
-      // backgroundColor: Colors.white,
       extendBodyBehindAppBar: false,
       body: SingleChildScrollView(
         child: Padding(
@@ -62,9 +161,7 @@ class _AddGeneratorState extends State<AddGenerator> {
                 "Name*",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
-
               const SizedBox(height: 10),
-
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
@@ -73,15 +170,8 @@ class _AddGeneratorState extends State<AddGenerator> {
                   border: Border.all(color: const Color(0xFFDDDDDD)),
                 ),
                 child: TextField(
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: null,
-                    hintStyle: TextStyle(
-                      color: const Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 14,
-                    ),
-                  ),
+                  controller: _nameController,
+                  decoration: const InputDecoration(border: InputBorder.none),
                 ),
               ),
 
@@ -91,7 +181,6 @@ class _AddGeneratorState extends State<AddGenerator> {
                 "Location*",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
-
               const SizedBox(height: 10),
 
               GestureDetector(
@@ -103,9 +192,11 @@ class _AddGeneratorState extends State<AddGenerator> {
                         ),
                       );
 
-                  if (result != null) {
+                  if (result != null && mounted) {
                     setState(() {
                       _selectedLocation = result['address'];
+                      _selectedLat = result['latitude'];
+                      _selectedLng = result['longitude'];
                     });
                   }
                 },
@@ -130,11 +221,9 @@ class _AddGeneratorState extends State<AddGenerator> {
                       Expanded(
                         child: Text(
                           _selectedLocation,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 14,
-                            color: _selectedLocation.isEmpty
-                                ? const Color.fromARGB(255, 0, 0, 0)
-                                : Colors.black,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -155,7 +244,6 @@ class _AddGeneratorState extends State<AddGenerator> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
-
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
@@ -164,15 +252,9 @@ class _AddGeneratorState extends State<AddGenerator> {
                   border: Border.all(color: const Color(0xFFDDDDDD)),
                 ),
                 child: TextField(
+                  controller: _codeController,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: null,
-                    hintStyle: TextStyle(
-                      color: const Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 14,
-                    ),
-                  ),
+                  decoration: const InputDecoration(border: InputBorder.none),
                 ),
               ),
 
@@ -182,7 +264,6 @@ class _AddGeneratorState extends State<AddGenerator> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
-
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
@@ -191,15 +272,9 @@ class _AddGeneratorState extends State<AddGenerator> {
                   border: Border.all(color: const Color(0xFFDDDDDD)),
                 ),
                 child: TextField(
+                  controller: _capacityController,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: null,
-                    hintStyle: TextStyle(
-                      color: const Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 14,
-                    ),
-                  ),
+                  decoration: const InputDecoration(border: InputBorder.none),
                 ),
               ),
               SizedBox(height: 32),
@@ -208,7 +283,6 @@ class _AddGeneratorState extends State<AddGenerator> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 10),
-
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
@@ -217,15 +291,9 @@ class _AddGeneratorState extends State<AddGenerator> {
                   border: Border.all(color: const Color(0xFFDDDDDD)),
                 ),
                 child: TextField(
+                  controller: _usageController,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    hintText: null,
-                    hintStyle: TextStyle(
-                      color: const Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 14,
-                    ),
-                  ),
+                  decoration: const InputDecoration(border: InputBorder.none),
                 ),
               ),
               SizedBox(height: 32),
@@ -279,9 +347,7 @@ class _AddGeneratorState extends State<AddGenerator> {
                               ),
                             ),
                     ),
-
                     const SizedBox(width: 16),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -307,9 +373,7 @@ class _AddGeneratorState extends State<AddGenerator> {
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ),
-
                           const SizedBox(height: 10),
-
                           ElevatedButton(
                             onPressed: _pickImage,
                             style: ElevatedButton.styleFrom(
@@ -338,34 +402,27 @@ class _AddGeneratorState extends State<AddGenerator> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) =>
-                                    const GeneratorsScreen(),
-                            transitionsBuilder:
-                                (
-                                  context,
-                                  animation,
-                                  secondaryAnimation,
-                                  child,
-                                ) {
-                                  const begin = Offset(-1.0, 0.0);
-                                  const end = Offset.zero;
-                                  final tween = Tween(
-                                    begin: begin,
-                                    end: end,
-                                  ).chain(CurveTween(curve: Curves.easeInOut));
-                                  return SlideTransition(
-                                    position: animation.drive(tween),
-                                    child: child,
-                                  );
-                                },
-                          ),
+                      onTap: () => Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder:
+                              (context, animation, secondaryAnimation) =>
+                                  const GeneratorsScreen(),
+                          transitionsBuilder:
+                              (context, animation, secondaryAnimation, child) {
+                                const begin = Offset(-1.0, 0.0);
+                                const end = Offset.zero;
+                                final tween = Tween(
+                                  begin: begin,
+                                  end: end,
+                                ).chain(CurveTween(curve: Curves.easeInOut));
+                                return SlideTransition(
+                                  position: animation.drive(tween),
+                                  child: child,
+                                );
+                              },
                         ),
-                      },
+                      ),
                       child: Container(
                         height: 50,
                         decoration: BoxDecoration(
@@ -384,12 +441,15 @@ class _AddGeneratorState extends State<AddGenerator> {
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 12),
-
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => showConfirmationGeneratorSave(context),
+                      onTap: _isSaving
+                          ? null
+                          : () => showConfirmationGeneratorSave(
+                              context,
+                              onConfirm: _saveGenerator,
+                            ),
                       child: Container(
                         height: 50,
                         decoration: BoxDecoration(
@@ -397,14 +457,23 @@ class _AddGeneratorState extends State<AddGenerator> {
                           borderRadius: BorderRadius.circular(30),
                         ),
                         alignment: Alignment.center,
-                        child: const Text(
-                          'Save Record',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Save Record',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -419,7 +488,10 @@ class _AddGeneratorState extends State<AddGenerator> {
   }
 }
 
-void showConfirmationGeneratorSave(BuildContext context) {
+void showConfirmationGeneratorSave(
+  BuildContext context, {
+  required VoidCallback onConfirm,
+}) {
   showModalBottomSheet(
     useRootNavigator: true,
     context: context,
@@ -487,6 +559,7 @@ void showConfirmationGeneratorSave(BuildContext context) {
                   child: GestureDetector(
                     onTap: () {
                       Navigator.pop(context);
+                      onConfirm();
                     },
                     child: Container(
                       height: 52,

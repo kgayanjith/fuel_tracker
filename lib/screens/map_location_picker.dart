@@ -30,7 +30,14 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
     });
   }
 
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
   Future<void> _getCurrentLocation() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -38,9 +45,12 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
         permission = await Geolocator.requestPermission();
       }
 
+      if (!mounted) return;
+
       if (permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always) {
         final position = await Geolocator.getCurrentPosition();
+        if (!mounted) return;
         final latLng = LatLng(position.latitude, position.longitude);
         setState(() => _selectedLocation = latLng);
         _mapController.move(latLng, 15);
@@ -51,23 +61,25 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
       }
     } catch (e) {
       debugPrint('Location error: $e');
-      await _getAddressFromLatLng(_selectedLocation);
+      if (mounted) {
+        await _getAddressFromLatLng(_selectedLocation);
+      }
     }
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _getAddressFromLatLng(LatLng latLng) async {
+    if (!mounted) return;
     setState(() => _isGeocoding = true);
     try {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?lat=${latLng.latitude}&lon=${latLng.longitude}&format=json',
       );
-      // ignore: avoid_print
-      // print(url);
       final response = await http.get(
         url,
         headers: {'User-Agent': 'com.kalindu.fuel_tracker'},
       );
+      if (!mounted) return;
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() => _address = data['display_name'] ?? 'Unknown location');
@@ -76,12 +88,14 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
       }
     } catch (e) {
       debugPrint('Geocoding error: $e');
-      setState(
-        () => _address =
-            '${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}',
-      );
+      if (mounted) {
+        setState(
+          () => _address =
+              '${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}',
+        );
+      }
     }
-    setState(() => _isGeocoding = false);
+    if (mounted) setState(() => _isGeocoding = false);
   }
 
   @override
@@ -104,11 +118,14 @@ class _MapLocationPickerState extends State<MapLocationPicker> {
               initialCenter: _selectedLocation,
               initialZoom: 15,
               onPositionChanged: (camera, hasGesture) {
+                if (!mounted) return;
                 setState(() => _selectedLocation = camera.center);
                 if (hasGesture) {
                   _debounce?.cancel();
                   _debounce = Timer(const Duration(seconds: 1), () {
-                    _getAddressFromLatLng(camera.center);
+                    if (mounted) {
+                      _getAddressFromLatLng(camera.center);
+                    }
                   });
                 }
               },

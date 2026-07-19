@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fuel_tracker/screens/addgenerator.dart';
 import 'package:fuel_tracker/screens/generator_view.dart';
 import '../widgets/appbar.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import '../widgets/dialogs.dart';
 
 class GeneratorsScreen extends StatefulWidget {
   const GeneratorsScreen({super.key});
@@ -12,39 +15,6 @@ class GeneratorsScreen extends StatefulWidget {
 }
 
 class _GeneratorsScreenState extends State<GeneratorsScreen> {
-  final List<Map<String, dynamic>> generators = [
-    const {
-      "id": "1",
-      "name": "Civil Department",
-      "location": "Civil",
-      "model": "CAT-18KS",
-      "liters": "10",
-      "image": "assets/generator1.png",
-      "capacity": "50",
-      "usage": "10",
-    },
-    const {
-      "id": "2",
-      "name": "Main Hall",
-      "location": "Main",
-      "model": "CAT-19KS",
-      "liters": "5",
-      "image": "assets/generator2.jpg",
-      "capacity": "35",
-      "usage": "7",
-    },
-    const {
-      "id": "3",
-      "name": "PC Lab",
-      "location": "Lab 1",
-      "model": "CAT-20KS",
-      "liters": "15",
-      "image": "assets/generator3.png",
-      "capacity": "70",
-      "usage": "15",
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,7 +28,6 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
         padding: const EdgeInsets.only(bottom: 80),
         child: FloatingActionButton(
           backgroundColor: Colors.black,
-
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(50),
           ),
@@ -72,157 +41,222 @@ class _GeneratorsScreenState extends State<GeneratorsScreen> {
       extendBodyBehindAppBar: false,
       body: Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
-        child: ListView.builder(
-          itemCount: generators.length,
-          itemBuilder: (context, index) {
-            final generator = generators[index];
-            return Slidable(
-              key: ValueKey(index),
-              endActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                extentRatio: 0.2,
-                children: [
-                  CustomSlidableAction(
-                    padding: EdgeInsets.zero,
-                    onPressed: (context) => {
-                      showConfirmationListDelete(context),
-                    },
-                    backgroundColor: Colors.transparent,
-                    child: Container(
-                      margin: const EdgeInsets.only(
-                        top: 8,
-                        bottom: 8,
-                        right: 0,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          bottomLeft: Radius.circular(12),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Delete',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('generators')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
 
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          GeneratorView(data: generators[index]),
-                    ),
-                  );
-                },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  padding: const EdgeInsets.all(0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            if (docs.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No generators added yet',
+                  style: TextStyle(color: Colors.black54, fontSize: 14),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final doc = docs[index];
+                final generator = doc.data() as Map<String, dynamic>;
+                final docId = doc.id;
+                final imagePath = generator['imagePath'] as String?;
+
+                return Slidable(
+                  key: ValueKey(docId),
+                  endActionPane: ActionPane(
+                    motion: const ScrollMotion(),
+                    extentRatio: 0.2,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.asset(
-                          generator['image'] as String,
-                          height: 80,
-                          width: 90,
-                          fit: BoxFit.contain,
+                      CustomSlidableAction(
+                        padding: EdgeInsets.zero,
+                        onPressed: (context) => showConfirmationListDelete(
+                          context,
+                          onConfirm: () => _deleteGenerator(docId),
                         ),
-                      ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              generator['name'],
-                              maxLines: 1,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        backgroundColor: Colors.transparent,
+                        child: Container(
+                          margin: const EdgeInsets.only(
+                            top: 8,
+                            bottom: 8,
+                            right: 0,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(12),
+                              bottomLeft: Radius.circular(12),
                             ),
-                            Text(
-                              generator['location'],
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
                             ),
-                            Text(
-                              generator['model'],
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              generator['liters'].toString(),
-                              softWrap: false,
-                              style: const TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Text(
-                              'Ltrs remain',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color.fromARGB(255, 0, 0, 0),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        width: 10,
-                        child: Column(
-                          children: const [
-                            Icon(
-                              Icons.drag_indicator_sharp,
-                              color: Colors.red,
-                              size: 18,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              GeneratorView(data: {...generator, 'id': docId}),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      padding: const EdgeInsets.all(0),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child:
+                                imagePath != null &&
+                                    File(imagePath).existsSync()
+                                ? Image.file(
+                                    File(imagePath),
+                                    height: 80,
+                                    width: 90,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Container(
+                                    height: 80,
+                                    width: 90,
+                                    color: const Color(0xFFF5F5F5),
+                                    child: const Icon(
+                                      Icons.image_outlined,
+                                      color: Colors.black26,
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (generator['name'] ?? '') as String,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  (generator['location'] ?? '') as String,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  'Code: ${generator['code'] ?? ''}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Text(
+                                  '${generator['fuelCapacity'] ?? '-'}',
+                                  softWrap: false,
+                                  style: const TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Text(
+                                  'Ltrs capacity',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color.fromARGB(255, 0, 0, 0),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            width: 10,
+                            child: Column(
+                              children: const [
+                                Icon(
+                                  Icons.drag_indicator_sharp,
+                                  color: Colors.red,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             );
           },
         ),
       ),
     );
   }
+
+  Future<void> _deleteGenerator(String docId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('generators')
+          .doc(docId)
+          .delete();
+    } catch (e) {
+      if (!mounted) return;
+      showMessageDialog(
+        context,
+        title: 'Error',
+        message: 'Failed to delete: $e',
+      );
+    }
+  }
 }
 
-void showConfirmationListDelete(BuildContext context) {
+void showConfirmationListDelete(
+  BuildContext context, {
+  required VoidCallback onConfirm,
+}) {
   showModalBottomSheet(
     useRootNavigator: true,
     context: context,
@@ -290,6 +324,7 @@ void showConfirmationListDelete(BuildContext context) {
                   child: GestureDetector(
                     onTap: () {
                       Navigator.pop(context);
+                      onConfirm();
                     },
                     child: Container(
                       height: 52,

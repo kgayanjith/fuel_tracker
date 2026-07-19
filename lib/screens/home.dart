@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/appbar.dart';
+import '../widgets/dialogs.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -94,11 +96,11 @@ class _RuntimeTab extends StatefulWidget {
 class _RuntimeTabState extends State<_RuntimeTab> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay = DateTime.now();
-  String? _selectedGenerator;
+  String? _selectedGeneratorId;
+  String? _selectedGeneratorName;
   String? _selectedHour;
   String? _selectedMinute;
-
-  final List<String> _generators = ['Civil Department', 'Main Hall', 'PC Lab'];
+  bool _isSaving = false;
 
   final List<String> _hours = List.generate(
     24,
@@ -108,6 +110,119 @@ class _RuntimeTabState extends State<_RuntimeTab> {
     4,
     (i) => (i * 15).toString().padLeft(2, '0'),
   );
+
+  Future<void> _saveRuntime() async {
+    if (_selectedGeneratorId == null ||
+        _selectedDay == null ||
+        _selectedHour == null ||
+        _selectedMinute == null) {
+      showMessageDialog(
+        context,
+        title: 'Missing Fields',
+        message: 'Please fill in all fields',
+      );
+      return;
+    }
+
+    final hours = int.parse(_selectedHour!);
+    final minutes = int.parse(_selectedMinute!);
+
+    if (hours == 0 && minutes == 0) {
+      showMessageDialog(
+        context,
+        title: 'Invalid Runtime',
+        message: 'Runtime must be greater than 0',
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final generatorRef = FirebaseFirestore.instance
+          .collection('generators')
+          .doc(_selectedGeneratorId);
+      final generatorSnap = await generatorRef.get();
+      final generatorData = generatorSnap.data();
+
+      if (generatorData == null) {
+        if (!mounted) return;
+        showMessageDialog(
+          context,
+          title: 'Error',
+          message: 'Selected generator no longer exists',
+        );
+        return;
+      }
+
+      final currentFuel =
+          (generatorData['currentFuel'] as num?)?.toDouble() ?? 0;
+      final usageRatePerHour =
+          (generatorData['fuelUsage'] as num?)?.toDouble() ?? 0;
+
+      // No fuel in the tank at all.
+      if (currentFuel <= 0) {
+        if (!mounted) return;
+        showMessageDialog(
+          context,
+          title: 'No Fuel Added',
+          message:
+              '${_selectedGeneratorName ?? 'This generator'} has no fuel '
+              'added yet. Please add fuel before logging runtime.',
+        );
+        return;
+      }
+
+      final runtimeHours = hours + (minutes / 60);
+      final fuelNeeded = runtimeHours * usageRatePerHour;
+
+      // Not enough fuel in the tank to cover this runtime entry.
+      if (fuelNeeded > currentFuel) {
+        if (!mounted) return;
+        showMessageDialog(
+          context,
+          title: 'Insufficient Fuel',
+          message:
+              'This runtime needs ~${fuelNeeded.toStringAsFixed(1)}L, but '
+              '${_selectedGeneratorName ?? 'the generator'} only has '
+              '${currentFuel.toStringAsFixed(1)}L left. Add more fuel or '
+              'log a shorter runtime.',
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('runtime_logs').add({
+        'generatorId': _selectedGeneratorId,
+        'generatorName': _selectedGeneratorName,
+        'date': Timestamp.fromDate(_selectedDay!),
+        'hours': hours,
+        'minutes': minutes,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await generatorRef.update({
+        'currentFuel': FieldValue.increment(-fuelNeeded),
+      });
+
+      if (!mounted) return;
+      showMessageDialog(context, title: 'Success', message: 'Runtime saved');
+      setState(() {
+        _selectedGeneratorId = null;
+        _selectedGeneratorName = null;
+        _selectedHour = null;
+        _selectedMinute = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showMessageDialog(
+        context,
+        title: 'Error',
+        message: 'Failed to save runtime: $e',
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +247,6 @@ class _RuntimeTabState extends State<_RuntimeTab> {
               child: TableCalendar(
                 firstDay: DateTime.utc(2020, 1, 1),
                 lastDay: DateTime.utc(2030, 12, 31),
-
                 focusedDay: _focusedDay,
                 selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                 onDaySelected: (selectedDay, focusedDay) {
@@ -181,7 +295,6 @@ class _RuntimeTabState extends State<_RuntimeTab> {
                     color: Colors.black54,
                   ),
                 ),
-
                 calendarStyle: CalendarStyle(
                   outsideDaysVisible: true,
                   outsideTextStyle: const TextStyle(
@@ -227,33 +340,55 @@ class _RuntimeTabState extends State<_RuntimeTab> {
 
           const SizedBox(height: 10),
 
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFDDDDDD)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                hint: const Text(
-                  '--Select--',
-                  style: TextStyle(color: Colors.black38, fontSize: 14),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('generators')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? [];
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDDDDDD)),
                 ),
-                value: _selectedGenerator,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                items: _generators
-                    .map(
-                      (g) => DropdownMenuItem(
-                        value: g,
-                        child: Text(g, style: const TextStyle(fontSize: 14)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) => setState(() => _selectedGenerator = val),
-              ),
-            ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text(
+                      '--Select--',
+                      style: TextStyle(color: Colors.black38, fontSize: 14),
+                    ),
+                    value: _selectedGeneratorId,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    items: docs
+                        .map(
+                          (doc) => DropdownMenuItem(
+                            value: doc.id,
+                            child: Text(
+                              (doc.data() as Map<String, dynamic>)['name']
+                                      ?.toString() ??
+                                  '',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      final doc = docs.firstWhere((d) => d.id == val);
+                      final name = (doc.data() as Map<String, dynamic>)['name']
+                          ?.toString();
+                      setState(() {
+                        _selectedGeneratorId = val;
+                        _selectedGeneratorName = name;
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
           ),
 
           const SizedBox(height: 24),
@@ -267,7 +402,6 @@ class _RuntimeTabState extends State<_RuntimeTab> {
 
           Row(
             children: [
-              // Hours Dropdown
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -349,7 +483,8 @@ class _RuntimeTabState extends State<_RuntimeTab> {
                   onTap: () {
                     setState(() {
                       _selectedDay = DateTime.now();
-                      _selectedGenerator = null;
+                      _selectedGeneratorId = null;
+                      _selectedGeneratorName = null;
                       _selectedHour = null;
                       _selectedMinute = null;
                       _focusedDay = DateTime.now();
@@ -378,7 +513,12 @@ class _RuntimeTabState extends State<_RuntimeTab> {
 
               Expanded(
                 child: GestureDetector(
-                  onTap: () => showConfirmationSheeRuntime(context),
+                  onTap: _isSaving
+                      ? null
+                      : () => showConfirmationSheeRuntime(
+                          context,
+                          onConfirm: _saveRuntime,
+                        ),
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
@@ -386,14 +526,23 @@ class _RuntimeTabState extends State<_RuntimeTab> {
                       borderRadius: BorderRadius.circular(30),
                     ),
                     alignment: Alignment.center,
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Save',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -406,7 +555,10 @@ class _RuntimeTabState extends State<_RuntimeTab> {
     );
   }
 
-  void showConfirmationSheeRuntime(BuildContext context) {
+  void showConfirmationSheeRuntime(
+    BuildContext context, {
+    required VoidCallback onConfirm,
+  }) {
     showModalBottomSheet(
       useRootNavigator: true,
       context: context,
@@ -478,6 +630,7 @@ class _RuntimeTabState extends State<_RuntimeTab> {
                     child: GestureDetector(
                       onTap: () {
                         Navigator.pop(context);
+                        onConfirm();
                       },
                       child: Container(
                         height: 52,
@@ -536,9 +689,121 @@ class _FuelTab extends StatefulWidget {
 class _FuelTabState extends State<_FuelTab> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay = DateTime.now();
-  String? _selectedGenerator;
+  String? _selectedGeneratorId;
+  String? _selectedGeneratorName;
+  double? _selectedGeneratorCapacity;
+  bool _isSaving = false;
 
-  final List<String> _generators = ['Civil Department', 'Main Hall', 'PC Lab'];
+  final TextEditingController _litersController = TextEditingController();
+  final TextEditingController _rateController = TextEditingController();
+
+  @override
+  void dispose() {
+    _litersController.dispose();
+    _rateController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveFuel() async {
+    if (_selectedGeneratorId == null ||
+        _selectedDay == null ||
+        _litersController.text.trim().isEmpty ||
+        _rateController.text.trim().isEmpty) {
+      showMessageDialog(
+        context,
+        title: 'Missing Fields',
+        message: 'Please fill in all fields',
+      );
+      return;
+    }
+
+    final litersToAdd = double.tryParse(_litersController.text.trim());
+    final rate = double.tryParse(_rateController.text.trim());
+
+    if (litersToAdd == null || rate == null) {
+      showMessageDialog(
+        context,
+        title: 'Invalid Input',
+        message: 'Enter valid numbers for fuel and rate',
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      // Re-fetch the generator doc fresh so validation uses the latest
+      // current fuel level, not a possibly-stale value held in state.
+      final generatorRef = FirebaseFirestore.instance
+          .collection('generators')
+          .doc(_selectedGeneratorId);
+      final generatorSnap = await generatorRef.get();
+      final generatorData = generatorSnap.data();
+
+      if (generatorData == null) {
+        if (!mounted) return;
+        showMessageDialog(
+          context,
+          title: 'Error',
+          message: 'Selected generator no longer exists',
+        );
+        return;
+      }
+
+      final capacity = (generatorData['fuelCapacity'] as num?)?.toDouble() ?? 0;
+      final currentFuel =
+          (generatorData['currentFuel'] as num?)?.toDouble() ?? 0;
+
+      if (currentFuel + litersToAdd > capacity) {
+        if (!mounted) return;
+        final remainingCapacity = capacity - currentFuel;
+        showMessageDialog(
+          context,
+          title: 'Fuel Limit Exceeded',
+          message:
+              'Only ${remainingCapacity.toStringAsFixed(1)}L of capacity left '
+              '(tank holds ${capacity.toStringAsFixed(1)}L)',
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('fuel_logs').add({
+        'generatorId': _selectedGeneratorId,
+        'generatorName': _selectedGeneratorName,
+        'date': Timestamp.fromDate(_selectedDay!),
+        'liters': litersToAdd,
+        'rate': rate,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await generatorRef.update({
+        'currentFuel': FieldValue.increment(litersToAdd),
+      });
+
+      if (!mounted) return;
+      showMessageDialog(
+        context,
+        title: 'Success',
+        message: 'Fuel record saved',
+      );
+      setState(() {
+        _selectedGeneratorId = null;
+        _selectedGeneratorName = null;
+        _selectedGeneratorCapacity = null;
+        _litersController.clear();
+        _rateController.clear();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showMessageDialog(
+        context,
+        title: 'Error',
+        message: 'Failed to save fuel record: $e',
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -627,7 +892,6 @@ class _FuelTabState extends State<_FuelTab> {
                   ),
                   todayDecoration: const BoxDecoration(
                     color: Colors.transparent,
-                    // borderRadius: BorderRadius.all(Radius.circular(8)),
                   ),
                   todayTextStyle: const TextStyle(
                     fontSize: 14,
@@ -657,34 +921,65 @@ class _FuelTabState extends State<_FuelTab> {
 
           const SizedBox(height: 10),
 
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFDDDDDD)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                hint: const Text(
-                  '--Select--',
-                  style: TextStyle(color: Colors.black38, fontSize: 14),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('generators')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? [];
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDDDDDD)),
                 ),
-                value: _selectedGenerator,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                items: _generators
-                    .map(
-                      (g) => DropdownMenuItem(
-                        value: g,
-                        child: Text(g, style: const TextStyle(fontSize: 14)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) => setState(() => _selectedGenerator = val),
-              ),
-            ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    hint: const Text(
+                      '--Select--',
+                      style: TextStyle(color: Colors.black38, fontSize: 14),
+                    ),
+                    value: _selectedGeneratorId,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    items: docs
+                        .map(
+                          (doc) => DropdownMenuItem(
+                            value: doc.id,
+                            child: Text(
+                              (doc.data() as Map<String, dynamic>)['name']
+                                      ?.toString() ??
+                                  '',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      final doc = docs.firstWhere((d) => d.id == val);
+                      final data = doc.data() as Map<String, dynamic>;
+                      setState(() {
+                        _selectedGeneratorId = val;
+                        _selectedGeneratorName = data['name']?.toString();
+                        _selectedGeneratorCapacity =
+                            (data['fuelCapacity'] as num?)?.toDouble();
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
           ),
+
+          if (_selectedGeneratorCapacity != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Tank capacity: ${_selectedGeneratorCapacity!.toStringAsFixed(1)} L',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
 
           const SizedBox(height: 24),
 
@@ -703,11 +998,12 @@ class _FuelTabState extends State<_FuelTab> {
               border: Border.all(color: const Color(0xFFDDDDDD)),
             ),
             child: TextField(
+              controller: _litersController,
               keyboardType: TextInputType.number,
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
               ],
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Enter fuel amount',
                 hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
@@ -732,14 +1028,14 @@ class _FuelTabState extends State<_FuelTab> {
               border: Border.all(color: const Color(0xFFDDDDDD)),
             ),
             child: TextField(
+              controller: _rateController,
               keyboardType: TextInputType.number,
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*')),
               ],
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 border: InputBorder.none,
-                hintText: 'Enter fuel amount',
-
+                hintText: 'Enter fuel rate',
                 hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
               ),
             ),
@@ -753,8 +1049,12 @@ class _FuelTabState extends State<_FuelTab> {
                   onTap: () {
                     setState(() {
                       _selectedDay = DateTime.now();
-                      _selectedGenerator = null;
+                      _selectedGeneratorId = null;
+                      _selectedGeneratorName = null;
+                      _selectedGeneratorCapacity = null;
                       _focusedDay = DateTime.now();
+                      _litersController.clear();
+                      _rateController.clear();
                     });
                   },
                   child: Container(
@@ -780,7 +1080,12 @@ class _FuelTabState extends State<_FuelTab> {
 
               Expanded(
                 child: GestureDetector(
-                  onTap: () => showConfirmationSheeFuel(context),
+                  onTap: _isSaving
+                      ? null
+                      : () => showConfirmationSheeFuel(
+                          context,
+                          onConfirm: _saveFuel,
+                        ),
                   child: Container(
                     height: 50,
                     decoration: BoxDecoration(
@@ -788,14 +1093,23 @@ class _FuelTabState extends State<_FuelTab> {
                       borderRadius: BorderRadius.circular(30),
                     ),
                     alignment: Alignment.center,
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Save',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -808,7 +1122,10 @@ class _FuelTabState extends State<_FuelTab> {
     );
   }
 
-  void showConfirmationSheeFuel(BuildContext context) {
+  void showConfirmationSheeFuel(
+    BuildContext context, {
+    required VoidCallback onConfirm,
+  }) {
     showModalBottomSheet(
       useRootNavigator: true,
       context: context,
@@ -880,6 +1197,7 @@ class _FuelTabState extends State<_FuelTab> {
                     child: GestureDetector(
                       onTap: () {
                         Navigator.pop(context);
+                        onConfirm();
                       },
                       child: Container(
                         height: 52,
