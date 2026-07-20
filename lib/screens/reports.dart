@@ -174,6 +174,8 @@ class _ReportsListState extends State<ReportsList> {
                                 ),
                                 Text(
                                   'Location: ${report['location'] ?? ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey[600],

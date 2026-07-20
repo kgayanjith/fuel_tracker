@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fuel_tracker/screens/generators.dart';
 import 'package:fuel_tracker/widgets/appbar.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class ReportPreviewScreen extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -143,6 +146,117 @@ class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
       });
     }
   }
+
+  Future<void> _exportReport() async {
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      _pdfInfo('Name', widget.data['name']?.toString() ?? ''),
+                      _pdfInfo(
+                        'Location',
+                        widget.data['location']?.toString() ?? '',
+                      ),
+                      _pdfInfo('Code', widget.data['code']?.toString() ?? ''),
+                      _pdfInfo(
+                        'Estimated fuel usage',
+                        '${widget.data['fuelUsage'] ?? '-'} L/hr',
+                      ),
+                      _pdfInfo(
+                        'Actual fuel usage',
+                        _totalRuntimeHours > 0
+                            ? '${_actualUsageRate.toStringAsFixed(2)} L/hr'
+                            : 'No runtime data yet',
+                      ),
+                      _pdfInfo(
+                        'Fuel capacity',
+                        '${widget.data['fuelCapacity'] ?? '-'} L',
+                      ),
+                      _pdfInfo(
+                        'Total runtime',
+                        '${_totalRuntimeHours.toStringAsFixed(1)} hrs',
+                      ),
+                      _pdfInfo(
+                        'Total fuel consumed',
+                        '${_totalFuelUsed.toStringAsFixed(1)} L',
+                      ),
+                    ],
+                  ),
+                  pw.Text(
+                    'Created : $_formattedDate',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 16),
+              _rows.isEmpty
+                  ? pw.Text(
+                      'No runtime or fuel entries logged yet for this generator.',
+                      style: const pw.TextStyle(fontSize: 11),
+                    )
+                  : pw.TableHelper.fromTextArray(
+                      headers: [
+                        'Date',
+                        'Runtime (Hr)',
+                        'Fuel Usage (L)',
+                        'Fuel Balance (L)',
+                      ],
+                      data: _rows
+                          .map(
+                            (log) => [
+                              log.date.toIso8601String().split('T').first,
+                              log.runtimeHours.toStringAsFixed(1),
+                              log.fuelUsed.toStringAsFixed(1),
+                              log.fuelBalance.toStringAsFixed(1),
+                            ],
+                          )
+                          .toList(),
+                      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      cellAlignment: pw.Alignment.center,
+                      border: pw.TableBorder.all(),
+                    ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final generatorName = widget.data['name']?.toString() ?? 'generator';
+    await Printing.sharePdf(
+      bytes: await doc.save(),
+      filename: 'report_${generatorName}_$_formattedDate.pdf',
+    );
+  }
+
+  pw.Widget _pdfInfo(String label, String value) => pw.Padding(
+    padding: const pw.EdgeInsets.only(bottom: 2),
+    child: pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: '$label : ',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+          ),
+          pw.TextSpan(text: value, style: const pw.TextStyle(fontSize: 11)),
+        ],
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +440,7 @@ class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
 
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => {},
+                    onTap: _exportReport,
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
